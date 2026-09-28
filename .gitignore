@@ -1,0 +1,17 @@
+# 构建产物
+bin/
+*.exe
+*.zip
+
+# 测试与排查留下的截图（docs/images 是手册配图，要提交）
+tools/*.png
+tools/.verify-*
+tools/.dbg*
+
+# 内部开发笔记（含排查过程与临时取证，不对外）
+docs/开发笔记.md
+
+# 用户样本与本地状态
+验证-中文顺序.txt
+$RECYCLE.BIN/
+Thumbs.db
