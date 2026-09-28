@@ -41,9 +41,6 @@ namespace Kisappear
 
         public const uint IACE_CHILDREN = 0x0001, IACE_DEFAULT = 0x0002, IACE_IGNORENOCONTEXT = 0x0004;
 
-        [DllImport("user32.dll")]
-        public static extern bool HideCaret(IntPtr hWnd);
-
         public const int WM_CHAR = 0x0102;
         public const int WM_KEYUP = 0x0101;
         public const int WM_MOUSEMOVE = 0x0200;

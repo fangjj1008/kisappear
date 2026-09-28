@@ -30,12 +30,12 @@ namespace Kisappear
         private Bitmap _buffer;
 
         /// <summary>
-        /// 系统光标只能在"输入彻底停下来"之后才藏。上屏的字是 WM_IME_ENDCOMPOSITION 之后才一个个
-        /// 以 WM_CHAR 进来的（实测微软拼音如此），在那之前藏会把 TSF 的锚点打断，
-        /// 后果是后面的词全插到前面 —— 中文顺序错乱。所以每次输入事件都重开这个静置计时器。
+        /// 这里**不调用 HideCaret** —— 一次都不。实测（%TEMP%\kisapper-trace.txt）：
+        /// 打完"…很高兴认识你"后插入点在 18，静置 400ms 让我们的计时器开火藏光标，
+        /// 下一次组字开始时 `SelectionStart` 自己退回 12（上一批的锚点），句号就插进了中间。
+        /// 也就是说只要藏，延后多久都会把 TSF 的锚点打回上一个提交点，表现为中文顺序错乱。
+        /// 代价是系统光标本身可能可见；我们画的光标仍按视口规则钉在 20px 尾巴左侧。
         /// </summary>
-        private readonly Timer _settle = new Timer();
-
         public InputHost()
         {
             Multiline = true;
@@ -52,8 +52,6 @@ namespace Kisappear
             Dock = DockStyle.Fill;
             BackColor = Color.FromArgb(24, 26, 31);
             ForeColor = BackColor;
-            _settle.Interval = 400;
-            _settle.Tick += (s, e) => { _settle.Stop(); HideSystemCaret(); };
         }
 
         /// <summary>
@@ -88,20 +86,6 @@ namespace Kisappear
         /// <summary>我们画的那条光标的位置（相对本控件），候选窗要钉在这里。</summary>
         public Point CompositionAnchor { get; set; }
 
-        /// <summary>有输入事件就把"藏系统光标"往后推，直到输入彻底静置下来。</summary>
-        private void ArmCaretHide()
-        {
-            _settle.Stop();
-            _settle.Start();
-        }
-
-        private void HideSystemCaret()
-        {
-            if (IsComposing) return;
-            if (!IsHandleCreated || !Focused) return;
-            NativeMethods.HideCaret(Handle);
-        }
-
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == WM_PAINT)
@@ -114,8 +98,7 @@ namespace Kisappear
             {
                 IntPtr p = Parent.Handle;
                 if (p != IntPtr.Zero) NativeMethods.SendMessage(p, m.Msg, m.WParam, m.LParam);
-                // 父窗口放完插入点后控件会造出系统光标；这里不能立刻藏，只重排静置计时
-                ArmCaretHide();
+                // 不藏系统光标：见构造函数上的说明，藏一次就够把中文顺序打乱
                 return;                   // 不让编辑控件自己响应点击，否则它会抢走父窗口的按钮/拖动
             }
             base.WndProc(ref m);
@@ -123,7 +106,6 @@ namespace Kisappear
             {
                 case NativeMethods.WM_IME_STARTCOMPOSITION:
                     IsComposing = true;
-                    ArmCaretHide();
                     TraceIme("start");
                     PositionCompositionWindow();
                     break;
@@ -131,21 +113,15 @@ namespace Kisappear
                     long flags = m.LParam.ToInt64();
                     if ((flags & NativeMethods.GCS_COMPSTR) != 0) IsComposing = true;
                     if ((flags & NativeMethods.GCS_RESULTSTR) != 0) IsComposing = false;
-                    ArmCaretHide();
                     TraceIme("comp 0x" + flags.ToString("X"));
                     PositionCompositionWindow();
                     break;
                 case NativeMethods.WM_IME_ENDCOMPOSITION:
                     IsComposing = false;
-                    ArmCaretHide();
                     TraceIme("end");
                     break;
                 case NativeMethods.WM_CHAR:
-                    ArmCaretHide();   // 上屏的字正是以 WM_CHAR 到达的，此刻最不能碰系统光标
                     TraceIme("char '" + ((char)m.WParam.ToInt32()) + "'" + (IsComposing ? " (composing)" : ""));
-                    break;
-                case NativeMethods.WM_KEYUP:
-                    ArmCaretHide();
                     break;
             }
         }
@@ -198,20 +174,17 @@ namespace Kisappear
         protected override void OnGotFocus(EventArgs e)
         {
             base.OnGotFocus(e);
-            HideSystemCaret();
         }
 
         protected override void OnTextChanged(EventArgs e)
         {
             base.OnTextChanged(e);
-            ArmCaretHide();
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                _settle.Dispose();
                 if (_buffer != null) { _buffer.Dispose(); _buffer = null; }
             }
             base.Dispose(disposing);
