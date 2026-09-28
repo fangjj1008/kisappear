@@ -1025,7 +1025,11 @@ namespace Kisappear
             string v = Environment.GetEnvironmentVariable(envName);
             if (!string.IsNullOrEmpty(v)) return v;
             if (_noLog) return null;
-            return Path.Combine(Path.GetTempPath(), defaultName);
+            // 带 pid：多个实例同时开着时，state/buffer 是整面覆写的，共名会互相盖掉，
+            // 取证就会看到"trace 说 len=55、state 说 len=8"这种自相矛盾的现场
+            return Path.Combine(Path.GetTempPath(),
+                defaultName.Replace(".txt", "-") +
+                System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
         }
 
         private readonly string _stateFile = LogPath("KISAPPER_STATE_FILE", "kisapper-state.txt");
