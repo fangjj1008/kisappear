@@ -1014,12 +1014,24 @@ namespace Kisappear
                 _menu.Show(Cursor.Position);
         }
 
-        // ---------- 测试钩子 ----------
+        // ---------- 取证日志 ----------
+        // 默认就开：中文顺序这类问题只有"用户实际敲的那一版"能作证，而靠启动时记得设环境变量
+        // 已经连着丢过三次现场（用户直接双击 exe，日志全是空的）。KISAPPER_NOLOG=1 才关。
 
-        private readonly string _stateFile = Environment.GetEnvironmentVariable("KISAPPER_STATE_FILE");
-        private readonly string _traceFile = Environment.GetEnvironmentVariable("KISAPPER_TRACE_FILE");
+        private static readonly bool _noLog = Environment.GetEnvironmentVariable("KISAPPER_NOLOG") == "1";
+
+        private static string LogPath(string envName, string defaultName)
+        {
+            string v = Environment.GetEnvironmentVariable(envName);
+            if (!string.IsNullOrEmpty(v)) return v;
+            if (_noLog) return null;
+            return Path.Combine(Path.GetTempPath(), defaultName);
+        }
+
+        private readonly string _stateFile = LogPath("KISAPPER_STATE_FILE", "kisapper-state.txt");
+        private readonly string _traceFile = LogPath("KISAPPER_TRACE_FILE", "kisapper-trace.txt");
+        private readonly string _dumpFile = LogPath("KISAPPER_DUMP_FILE", "kisapper-buffer.txt");
         private readonly bool _testPick = Environment.GetEnvironmentVariable("KISAPPER_TEST_PICK") == "1";
-        private readonly string _dumpFile = Environment.GetEnvironmentVariable("KISAPPER_DUMP_FILE");
 
         private void Trace(string what)
         {
